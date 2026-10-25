@@ -1,0 +1,12 @@
+# dsh-pet-game-guard —— DSH bundle patch
+#
+# 「挂载声明」：DSH 启动时按 bundle 层栈叠加各插件 patch，本文件把守卫插进 profile 的配置树。
+#
+# 安装：
+#   dsh plugin --profile web add dsh-pet-game-guard
+# 本地开发安装：
+#   dsh plugin --profile web add link:<本目录绝对路径>
+
+- insert:
+    - id: pet-game-guard
+      name: dsh-pet-game-guard
