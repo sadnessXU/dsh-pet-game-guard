@@ -1,6 +1,6 @@
 {
   "name": "dsh-pet-game-guard",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "打游戏时自动把 dsh-pet 桌宠收起来，退出游戏后放回来：全屏应用与游戏进程双重判定，只动窗口可见性，不改插件配置。",
   "icon": "icon.png",
   "keywords": [

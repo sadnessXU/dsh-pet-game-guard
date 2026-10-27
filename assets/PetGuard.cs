@@ -35,6 +35,8 @@ namespace PetGuard
 
         [DllImport("user32.dll")]
         public static extern bool EnumWindows(EnumWindowsProc cb, IntPtr lParam);
+        [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+        public static extern uint RegisterWindowMessage(string name);
         [DllImport("user32.dll")]
         public static extern bool IsWindowVisible(IntPtr hWnd);
         [DllImport("user32.dll")]
@@ -517,6 +519,31 @@ namespace PetGuard
         }
     }
 
+    // 只收消息的隐藏窗口：用来接 TaskbarCreated 广播
+    internal sealed class MsgWindow : NativeWindow
+    {
+        public MsgWindow()
+        {
+            CreateParams cp = new CreateParams();
+            cp.Caption = "PetGuardMsg";
+            // 必须是普通顶层窗口（不能设 Parent=HWND_MESSAGE）：消息型窗口收不到 HWND_BROADCAST
+            CreateHandle(cp);
+        }
+
+        protected override void WndProc(ref Message m)
+        {
+            try
+            {
+                if (m.Msg == Program.TaskbarCreated)
+                {
+                    Program.OnTaskbarCreated();
+                }
+            }
+            catch { }
+            base.WndProc(ref m);
+        }
+    }
+
     // ---------------------------------------------------------------- 主程序
 
     internal static class Program
@@ -524,6 +551,10 @@ namespace PetGuard
         public static Config Cfg;
         static NotifyIcon tray;
         static Mutex single;
+        // 资源管理器重启后 Windows 会广播 TaskbarCreated，收到后要重新注册托盘图标，
+        // 否则图标会永久消失（日志里看着一切正常，但托盘里就是没有它）
+        internal static readonly int TaskbarCreated = (int)Native.RegisterWindowMessage("TaskbarCreated");
+        static MsgWindow msgWin;
         // 跨进程「请退出」信号：--quit 打开同名事件并 Set，常驻实例收到后自己收尾退出
         const string QuitEventName = "PetGuard-DSH-Pet-Quit";
         static volatile bool stop;
@@ -663,18 +694,51 @@ namespace PetGuard
             }
             catch { }
 
-            tray = new NotifyIcon();
-            tray.Icon = BuildIcon();
-            tray.Text = "宠物游戏守卫";
-            tray.ContextMenuStrip = BuildMenu();
-            tray.Visible = true;
-            tray.DoubleClick += delegate { Restore(); };
+            CreateTray();
+
+            // 资源管理器启动比本程序慢时，第一次注册会静默失败：20 秒后再补一次
+            System.Threading.Timer lateRetry = new System.Threading.Timer(delegate { CreateTray(); }, null, 20000, Timeout.Infinite);
+
+            // 常驻消息窗口，接 TaskbarCreated 广播
+            msgWin = new MsgWindow();
 
             Thread worker = new Thread(WorkerLoop);
             worker.IsBackground = true;
             worker.Start();
 
             Application.Run();
+        }
+
+        // 建（或重建）托盘图标；重复调用安全
+        internal static void CreateTray()
+        {
+            try
+            {
+                if (tray != null)
+                {
+                    try { tray.Visible = false; tray.Dispose(); } catch { }
+                    tray = null;
+                }
+                NotifyIcon t = new NotifyIcon();
+                t.Icon = BuildIcon();
+                t.Text = "宠物游戏守卫";
+                t.ContextMenuStrip = BuildMenu();
+                t.DoubleClick += delegate { Restore(); };
+                t.Visible = true;
+                tray = t;
+            }
+            catch (Exception ex) { LogAlways("TRAY fail " + ex.GetType().Name + ": " + ex.Message); }
+        }
+
+        // 资源管理器重启后补注册
+        internal static void OnTaskbarCreated()
+        {
+            LogAlways("TASKBAR recreated, re-register tray icon");
+            ThreadPool.QueueUserWorkItem(delegate
+            {
+                Thread.Sleep(1500);
+                CreateTray();
+            });
         }
 
         static ContextMenuStrip BuildMenu()

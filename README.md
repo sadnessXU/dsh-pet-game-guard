@@ -90,6 +90,12 @@ PetGuard.exe --quit     # ask a running instance to exit (restores the pet first
 - A borderless fullscreen video (for example YouTube in fullscreen) also counts as fullscreen and hides the pet. Raise `hide_when_fullscreen=0` if you only want games.
 - The guard runs while DSH runs. When DSH exits, it exits too.
 
+## Changelog
+
+- **0.1.2** — Fix the tray icon silently disappearing: listen for the `TaskbarCreated` broadcast (re-register after Explorer restarts) and re-register once 20 s after startup to survive a boot race with Explorer.
+- **0.1.1** — Recover when the guard is killed externally; no longer kills a user-run instance on uninstall or host exit.
+- **0.1.0** — First release.
+
 ## License
 
 MIT
